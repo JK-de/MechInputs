@@ -1,0 +1,9 @@
+name=MechInputs
+version=0.0.1
+author=JKDesign
+maintainer=JKDesign <JKDesign@me.com>
+sentence=Library for Reading and Debouncing Mechanical Inputs Like Buttons, Switches and Encoders with Arduino-Based Controllers.
+paragraph=Library for Reading and Debouncing Mechanical Inputs Like Buttons, Switches and Encoders with Arduino-Based Controllers.
+category=Input
+url=https://github.com/jkDesignDE/MechInputs
+architectures=*
