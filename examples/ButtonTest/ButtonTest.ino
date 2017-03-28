@@ -15,6 +15,8 @@ QEIx4 encoder = QEIx4();
 unsigned long millisNext = 0;
 
 void setup() {
+	Serial.begin(115200);           // set up Serial library at 115200 bps
+	Serial.println("Button test (MechInputs)");
 
 	pinMode(PINA, INPUT_PULLUP);
 	pinMode(PINB, INPUT_PULLUP);
@@ -39,7 +41,7 @@ void loop() {
 		if (encoder.hasChanged())
 		{
 			long counter = encoder.read();
-			println(counter);
+			Serial.println(counter);
 		}
 	}
 }
