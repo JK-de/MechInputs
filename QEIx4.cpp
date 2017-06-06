@@ -24,6 +24,7 @@
   -------------------------------------------------------------------------*/
 
 #include "QEIx4.h"
+#include <Limits.h>
 
 
 // bit masks for state machine - don't change!!!
@@ -54,7 +55,7 @@
 #define QEIx4_IS_DIR  0x20
 
 // state machine for decoting - don't change!!!
-short QEIx4::_modeLUT[32] = {
+uint16_t QEIx4::__stateLUT[32] = {
 	// act state S0 in CCW direction
 	QEIx4_CCW | QEIx4_S0,
 	QEIx4_CW  | QEIx4_S1 | QEIx4_A  | QEIx4_4x_INC | QEIx4_DIR,
@@ -98,6 +99,8 @@ short QEIx4::_modeLUT[32] = {
 	QEIx4_CW  | QEIx4_S3 | QEIx4_AB
 };
 
+QEIx4* QEIx4::__instance[4] = { 0 };
+
 
 //#define DEB(x) printf (x)
 #define DEB(x)
@@ -106,25 +109,50 @@ short QEIx4::_modeLUT[32] = {
 
 QEIx4::QEIx4()
 {
+	for (byte i=0; i<4; i++)
+		if (__instance[i] == 0)
+		{
+			__instance[i] = this;
+			break;
+		}
+
+	_pinA = -1;
+	_pinB = -1;
+	_pinI = -1;
 	_state = 0;
-	begin();
+	_limitMin = LONG_MIN;
+	_limitMax = LONG_MAX;
+
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 QEIx4::~QEIx4()
 {
+	for (byte i=0; i<4; i++)
+		if (__instance[i] == this)
+		{
+			__instance[i] = 0;
+		}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void QEIx4::begin(int nMode = 4)
+void QEIx4::begin(int16_t pinA, int16_t pinB, int16_t pinI, uint8_t mode)
 {
-	_counter = 0;
+	if (_pinA >= 0)
+		attachInterrupt(pinA, ISR, CHANGE);
 
-	if (nMode==1)
+	_pinA = pinA;
+	_pinB = pinB;
+	_pinI = pinI;
+
+	_counter = 0;
+	_bHasChanged = true;
+
+	if (mode == 1)
 		_eventMask = QEIx4_1x_MASK;
-	else if (nMode == 2)
+	else if (mode == 2)
 		_eventMask = QEIx4_2x_MASK;
 	else
 		_eventMask = QEIx4_4x_MASK;
@@ -132,42 +160,65 @@ void QEIx4::begin(int nMode = 4)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void QEIx4::doProcess(bool bInputA, bool bInputB, bool bInputI);
+long QEIx4::read()
 {
-	int pinA, pinB;
+	noInterrupts();
+	_bHasChanged = false;
+	long ret = _counter;
+	interrupts();
+	return ret;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void QEIx4::processStateMachine()
+{
 
 	DEB(".");
 	_state &= QEIx4_MASK;
-	if (bInputA) _state |= QEIx4_A;
-	if (bInputB) _state |= QEIx4_B;
+	if (digitalRead(_pinA)) _state |= QEIx4_A;
+	if (digitalRead(_pinB)) _state |= QEIx4_B;
 
-	_state = _modeLUT[_state];   // magic is done by lookup-table
+	_state = __stateLUT[_state];   // magic is done by lookup-table
+	_state &= _eventMask;
 
-	if (_state & QEIx4_CHG) {   // is any change?
+	if (_state & QEIx4_IS_CHG) {   // is any change?
 		bool bCounterChange = false;
 
-		if (_state & QEIx4_INC) {   // is moved foreward?
+		if ((_state & QEIx4_IS_INC) && (_counter < _limitMax)) {   // has moved foreward?
 			_counter++;
 			bCounterChange = true;
 		}
-		if (_state & QEIx4_DEC) {   // is moved backward?
+		if ((_state & QEIx4_IS_DEC) && (_counter > _limitMin)) {   // has moved backward?
 			_counter--;
 			bCounterChange = true;
 		}
 
 
-		if (_bIndexTrigger && bCounterChange && bInputI) {   // is index pin triggered?
+		if (_bIndexTrigger && bCounterChange && digitalRead(_pinI)) {   // is index pin triggered?
 			_bIndexTrigger = false;
+			_counter = 0;
+			bCounterChange = true;
 			//fPointerIndexTrigger.call(_counter);
 		}
 
 		if (bCounterChange) {   // has counter changed?
-			fPointerCounterChange.call(_counter);
+			_bHasChanged = true;
+			//fPointerCounterChange.call(_counter);
 			//if (_state & QEIx4_DIR)
 			//	fPointerDirectionChange.call(_counter);
 		}
 
 	}
+}
+
+void QEIx4::ISR()
+{
+	for (byte i=0; i<4; i++)
+		if (__instance[i])
+		{
+			__instance[i]->processStateMachine();
+		}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

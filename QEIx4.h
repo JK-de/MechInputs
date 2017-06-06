@@ -45,22 +45,20 @@ public:
 	*/
 	~QEIx4();
 
-	void begin(int nMode = 4);
+	void begin(int16_t pinA, int16_t pinB, int16_t pinI=-1, uint8_t mode=4);
 
 	/** Gets the actual counter value.
 	*
 	* @return        Actual counter value
 	*/
-	long read() {
-		return _counter;
-	}
+	long read();
 
-	/** Gets the actual counter value as int operator.
+	/** Gets the actual counter value as long operator.
 	*
-	* @return        Actual counter value as int operator
+	* @return        Actual counter value as long operator
 	*/
 	operator long() {   // int-Operator
-		return _counter;
+		return read();
 	}
 
 	/** Sets the counter value at actual encoder position to given value.
@@ -80,32 +78,53 @@ public:
 		return counter;
 	}
 
-	/** Polls the state machine manually and updates the counter value.
-	*/
-	void doProcess(bool bInputA, bool bInputB, bool bInputI = false);
-
+  void setLimit(long limitMin, long limitMax)
+  {
+    _limitMin = limitMin;
+    _limitMax = limitMax;
+  }
 
 	/** Sets the flag for zeroing on next high on index pin while AB lines triggers next counting. The trigger calls tha callback function in which the counter can be set to zero or the actual counter can be latched in for later offset calculation
 	*
 	* @param        Flag for triggering. Set to 1 for call the attached callback. It is reseted after this call
 	*/
-	void setIndexTrigger(bool bIndexTrigger) {
+	void setIndexTrigger(bool bIndexTrigger=true) {
+    if (_pinI < 0)
+      bIndexTrigger = false;
 		_bIndexTrigger = bIndexTrigger;
 	}
 
-	bool hasChanged();
+  bool hasChanged(){
+    return _bHasChanged;
+  }
+
 
 protected:
 
+  /** Polls the state machine and updates the counter value.
+	*/
+	void processStateMachine();
+  static void ISR();
+
+protected:
+
+  int16_t _pinA;
+  int16_t _pinB;
+  int16_t _pinI;
 	long _counter;
-	short _state;
-	short _eMode;
+  long _limitMin;
+  long _limitMax;
+	uint16_t _state;
+	uint16_t _eMode;
 	bool _bIndexTrigger;
 	bool _bHasChanged;
 
 
+
 private:
-	static short _modeLUT[32];
+	static uint16_t __stateLUT[32];
+  static QEIx4* __instance[4];
+  uint16_t _eventMask;
 };
 
 
