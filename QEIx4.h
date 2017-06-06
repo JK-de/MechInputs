@@ -98,35 +98,36 @@ public:
     return _bHasChanged;
   }
 
+  void loop();
 
 protected:
 
   /** Polls the state machine and updates the counter value.
 	*/
 	void processStateMachine();
+
+  /** Entry point for arduino interrupts - route to class instances
+  */
   static void ISR();
 
 protected:
 
+  volatile long _counter;
+  volatile bool _bHasChanged;
+  volatile bool _bIndexTrigger;
+
   int16_t _pinA;
   int16_t _pinB;
   int16_t _pinI;
-	long _counter;
   long _limitMin;
   long _limitMax;
 	uint16_t _state;
 	uint16_t _eMode;
-	bool _bIndexTrigger;
-	bool _bHasChanged;
-
-
 
 private:
 	static uint16_t __stateLUT[32];
   static QEIx4* __instance[4];
   uint16_t _eventMask;
 };
-
-
 
 #endif // QEIX4_H

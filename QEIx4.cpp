@@ -99,6 +99,7 @@ uint16_t QEIx4::__stateLUT[32] = {
 	QEIx4_CW  | QEIx4_S3 | QEIx4_AB
 };
 
+// Helper for ISR call
 QEIx4* QEIx4::__instance[4] = { 0 };
 
 
@@ -113,6 +114,7 @@ QEIx4::QEIx4()
 		if (__instance[i] == 0)
 		{
 			__instance[i] = this;
+			DEB("::");
 			break;
 		}
 
@@ -122,7 +124,6 @@ QEIx4::QEIx4()
 	_state = 0;
 	_limitMin = LONG_MIN;
 	_limitMax = LONG_MAX;
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -141,7 +142,9 @@ QEIx4::~QEIx4()
 void QEIx4::begin(int16_t pinA, int16_t pinB, int16_t pinI, uint8_t mode)
 {
 	if (_pinA >= 0)
-		attachInterrupt(pinA, ISR, CHANGE);
+		detachInterrupt(digitalPinToInterrupt(_pinA));
+	if (_pinB >= 0)
+		detachInterrupt(digitalPinToInterrupt(_pinB));
 
 	_pinA = pinA;
 	_pinB = pinB;
@@ -156,6 +159,15 @@ void QEIx4::begin(int16_t pinA, int16_t pinB, int16_t pinI, uint8_t mode)
 		_eventMask = QEIx4_2x_MASK;
 	else
 		_eventMask = QEIx4_4x_MASK;
+
+	pinMode(_pinA, INPUT_PULLUP);
+	pinMode(_pinB, INPUT_PULLUP);
+	pinMode(_pinI, INPUT_PULLUP);
+
+	if (_pinA >= 0)
+		attachInterrupt(digitalPinToInterrupt(_pinA), ISR, CHANGE);
+	if (_pinB >= 0)
+		attachInterrupt(digitalPinToInterrupt(_pinB), ISR, CHANGE);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -169,12 +181,19 @@ long QEIx4::read()
 	return ret;
 }
 
+void QEIx4::loop()
+{
+	noInterrupts();
+	processStateMachine();
+	interrupts();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 void QEIx4::processStateMachine()
 {
-
 	DEB(".");
+
 	_state &= QEIx4_MASK;
 	if (digitalRead(_pinA)) _state |= QEIx4_A;
 	if (digitalRead(_pinB)) _state |= QEIx4_B;
@@ -188,27 +207,23 @@ void QEIx4::processStateMachine()
 		if ((_state & QEIx4_IS_INC) && (_counter < _limitMax)) {   // has moved foreward?
 			_counter++;
 			bCounterChange = true;
+			DEB("+");
 		}
 		if ((_state & QEIx4_IS_DEC) && (_counter > _limitMin)) {   // has moved backward?
 			_counter--;
 			bCounterChange = true;
+			DEB("-");
 		}
 
-
-		if (_bIndexTrigger && bCounterChange && digitalRead(_pinI)) {   // is index pin triggered?
+		if (_pinI >= 0 && _bIndexTrigger && bCounterChange && digitalRead(_pinI)) {   // is index pin triggered?
 			_bIndexTrigger = false;
 			_counter = 0;
-			bCounterChange = true;
-			//fPointerIndexTrigger.call(_counter);
+			DEB("I");
 		}
 
 		if (bCounterChange) {   // has counter changed?
 			_bHasChanged = true;
-			//fPointerCounterChange.call(_counter);
-			//if (_state & QEIx4_DIR)
-			//	fPointerDirectionChange.call(_counter);
 		}
-
 	}
 }
 
